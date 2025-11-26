@@ -1,0 +1,276 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f9; color: #333; }
+        header { background: #007bff; color: white; padding: 20px; text-align: center; position: relative; }
+        .container { max-width: 1000px; margin: 20px auto; padding: 20px; }
+        input, textarea, select, button { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { background: #007bff; color: white; cursor: pointer; font-size: 16px; border: none; }
+        button:hover { background: #0056b3; }
+        table { width: 100%; border-collapse: collapse; margin: 25px 0; background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
+        th, td { padding: 14px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #007bff; color: white; }
+        .actions button { width: auto; padding: 8px 12px; margin: 0 4px; font-size: 14px; }
+        .completed { background: #d4edda; text-decoration: line-through; opacity: 0.8; }
+        .priority-high { color: #d9534f; font-weight: bold; }
+        .priority-medium { color: #f0ad4e; }
+        .priority-low { color: #5cb85c; }
+        .hidden { display: none; }
+        .logout { position: absolute; top: 15px; right: 20px; background: #dc3545; padding: 10px 15px; font-size: 14px; }
+        .form-box { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); max-width: 400px; margin: 40px auto; }
+        .add-btn { background: #28a745; padding: 12px 25px; font-size: 16px; display: inline-block; border-radius: 6px; text-decoration: none; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Task Manager</h1>
+    <button id="logoutBtn" class="logout hidden" onclick="logout()">Logout</button>
+</header>
+
+<div class="container">
+
+    <!-- Login Screen -->
+    <div id="loginScreen">
+        <div class="form-box">
+            <h2 style="text-align:center;">Login</h2>
+            <input type="text" id="loginUser" placeholder="Username" required>
+            <input type="password" id="loginPass" placeholder="Password" required>
+            <button onclick="login()">Login</button>
+            <p style="text-align:center; margin-top:20px;">
+                No account? <a href="#" onclick="showRegister()" style="color:#007bff;">Register here</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- Register Screen -->
+    <div id="registerScreen" class="hidden">
+        <div class="form-box">
+            <h2 style="text-align:center;">Create Account</h2>
+            <input type="text" id="regUser" placeholder="Choose Username" required>
+            <input type="password" id="regPass" placeholder="Choose Password" required>
+            <button onclick="register()">Register</button>
+            <p style="text-align:center; margin-top:20px;">
+                <a href="#" onclick="showLogin()" style="color:#007bff;">Back to Login</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="hidden">
+        <a href="#" onclick="showAddForm()" class="add-btn">+ Add New Task</a>
+
+        <div id="addForm" class="form-box hidden" style="max-width:600px; margin-top:30px;">
+            <h3>Add / Edit Task</h3>
+            <input type="text" id="taskName" placeholder="Task Name" required>
+            <textarea id="taskDesc" rows="3" placeholder="Description (optional)"></textarea>
+            <input type="date" id="dueDate" required>
+            <select id="priority">
+                <option value="High">High Priority</option>
+                <option value="Medium" selected>Medium Priority</option>
+                <option value="Low">Low Priority</option>
+            </select>
+            <button onclick="addTask()">Save Task</button>
+            <button onclick="hideAddForm()" style="background:#6c757d;">Cancel</button>
+        </div>
+
+        <h2 style="margin-top:40px;">My Tasks</h2>
+        <table id="taskTable">
+            <thead>
+                <tr>
+                    <th>Task Name</th>
+                    <th>Description</th>
+                    <th>Due Date</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="taskList"></tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+// LocalStorage keys
+const TASKS_KEY = "tasks_app_tasks";
+const USERS_KEY = "tasks_app_users";
+const CURRENT_USER_KEY = "tasks_app_current_user";
+
+// Screen controls
+function showLogin() {
+    document.getElementById("loginScreen").classList.remove("hidden");
+    document.getElementById("registerScreen").classList.add("hidden");
+    document.getElementById("dashboard").classList.add("hidden");
+}
+function showRegister() {
+    document.getElementById("loginScreen").classList.add("hidden");
+    document.getElementById("registerScreen").classList.remove("hidden");
+    document.getElementById("dashboard").classList.add("hidden");
+}
+function showDashboard() {
+    document.getElementById("loginScreen").classList.add("hidden");
+    document.getElementById("registerScreen").classList.add("hidden");
+    document.getElementById("dashboard").classList.remove("hidden");
+    document.getElementById("logoutBtn").classList.remove("hidden");
+    loadTasks();
+}
+
+// Register
+function register() {
+    const username = document.getElementById("regUser").value.trim();
+    const password = document.getElementById("regPass").value;
+    if (!username || !password) return alert("Please fill all fields");
+
+    let users = JSON.parse(localStorage.getItem(USERS_KEY) || "{}");
+    if (users[username]) return alert("Username already taken!");
+
+    users[username] = password;
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    alert("Account created successfully!");
+    showLogin();
+}
+
+// Login
+function login() {
+    const username = document.getElementById("loginUser").value.trim();
+    const password = document.getElementById("loginPass").value;
+
+    const users = JSON.parse(localStorage.getItem(USERS_KEY) || "{}");
+    if (users[username] && users[username] === password) {
+        localStorage.setItem(CURRENT_USER_KEY, username);
+        showDashboard();
+    } else {
+        alert("Incorrect username or password");
+    }
+}
+
+// Logout
+function logout() {
+    localStorage.removeItem(CURRENT_USER_KEY);
+    showLogin();
+    document.getElementById("logoutBtn").classList.add("hidden");
+}
+
+// Auto-login if already signed in
+window.onload = () => {
+    if (localStorage.getItem(CURRENT_USER_KEY)) {
+        showDashboard();
+    }
+};
+
+// Task Management
+function getTasks() {
+    const allTasks = JSON.parse(localStorage.getItem(TASKS_KEY) || "{}");
+    const user = localStorage.getItem(CURRENT_USER_KEY);
+    return allTasks[user] || [];
+}
+
+function saveTasks(tasks) {
+    const allTasks = JSON.parse(localStorage.getItem(TASKS_KEY) || "{}");
+    allTasks[localStorage.getItem(CURRENT_USER_KEY)] = tasks;
+    localStorage.setItem(TASKS_KEY, JSON.stringify(allTasks));
+}
+
+function loadTasks() {
+    const tasks = getTasks();
+    const tbody = document.getElementById("taskList");
+    tbody.innerHTML = "";
+
+    // Sort by due date
+    tasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+    tasks.forEach((task, index) => {
+        const row = document.createElement("tr");
+        if (task.status === "Completed") row.classList.add("completed");
+
+        row.innerHTML = `
+            <td><strong>${task.name}</strong></td>
+            <td>${task.desc || "-"}</td>
+            <td>${task.dueDate}</td>
+            <td class="priority-${task.priority.toLowerCase()}">${task.priority}</td>
+            <td>${task.status}</td>
+            <td class="actions">
+                ${task.status !== "Completed" ? `<button onclick="completeTask(${index})">✓ Complete</button>` : ""}
+                <button onclick="editTask(${index})">Edit</button>
+                <button onclick="deleteTask(${index})" style="background:#dc3545;">Delete</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function showAddForm() {
+    document.getElementById("addForm").classList.remove("hidden");
+    document.getElementById("taskName").focus();
+}
+
+function hideAddForm() {
+    document.getElementById("addForm").classList.add("hidden");
+    document.getElementById("taskName").value = "";
+    document.getElementById("taskDesc").value = "";
+    document.getElementById("dueDate").value = "";
+    document.getElementById("priority").value = "Medium";
+}
+
+let editingIndex = -1;
+
+function addTask() {
+    const name = document.getElementById("taskName").value.trim();
+    const desc = document.getElementById("taskDesc").value.trim();
+    const dueDate = document.getElementById("dueDate").value;
+    const priority = document.getElementById("priority").value;
+
+    if (!name || !dueDate) return alert("Task name and due date are required!");
+
+    const tasks = getTasks();
+
+    if (editingIndex >= 0) {
+        tasks[editingIndex] = { name, desc, dueDate, priority, status: tasks[editingIndex].status };
+        editingIndex = -1;
+    } else {
+        tasks.push({ name, desc, dueDate, priority, status: "Pending" });
+    }
+
+    saveTasks(tasks);
+    hideAddForm();
+    loadTasks();
+}
+
+function completeTask(index) {
+    const tasks = getTasks();
+    tasks[index].status = "Completed";
+    saveTasks(tasks);
+    loadTasks();
+}
+
+function deleteTask(index) {
+    if (confirm("Delete this task permanently?")) {
+        const tasks = getTasks();
+        tasks.splice(index, 1);
+        saveTasks(tasks);
+        loadTasks();
+    }
+}
+
+function editTask(index) {
+    const tasks = getTasks();
+    const task = tasks[index];
+
+    document.getElementById("taskName").value = task.name;
+    document.getElementById("taskDesc").value = task.desc || "";
+    document.getElementById("dueDate").value = task.dueDate;
+    document.getElementById("priority").value = task.priority;
+
+    editingIndex = index;
+    showAddForm();
+}
+</script>
+
+</body>
+</html>
